@@ -96,7 +96,7 @@ namespace gr {
             std::cout << "Bins per symbol: \t"      << d_number_of_bins     << std::endl;
             std::cout << "Samples per symbol: \t"   << d_samples_per_symbol << std::endl;
             std::cout << "Decimation: \t\t"         << d_decim_factor       << std::endl;
-
+            if(!d_enable_fine_sync) {
                 std::cout << "Warning: clock drift correction disabled" << std::endl;
             }
             if(d_implicit) {
