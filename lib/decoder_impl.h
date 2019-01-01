@@ -101,6 +101,7 @@ namespace gr {
                 uint32_t         d_corr_fails;              ///< Indicates how many times the correlation failed. After some tries, the state will revert to `DecoderState::DETECT`.
                 float            d_energy_threshold;        ///< The absolute threshold to distinguish signal from noise.
                 float            d_snr;                     ///< Signal to noise ratio
+                float            d_center_freq;
                 boost::circular_buffer<float> d_pwr_queue;  ///< Queue holding symbol power values
 
                 std::vector<uint32_t> d_words;              ///< Vector containing the demodulated words.
@@ -415,7 +416,7 @@ namespace gr {
                  *  \param  sf
                  *          The expected spreqding factor.
                  */
-                decoder_impl(float samp_rate, uint32_t bandwidth, uint8_t sf, bool implicit, uint8_t cr, bool crc, bool reduced_rate, bool disable_drift_correction);
+                decoder_impl(float samp_rate, uint32_t bandwidth, uint8_t sf, bool implicit, uint8_t cr, bool crc, bool reduced_rate, bool disable_drift_correction, float center_freq);
 
                 /**
                  *  Default destructor.

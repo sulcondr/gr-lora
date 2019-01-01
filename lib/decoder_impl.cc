@@ -38,15 +38,15 @@
 namespace gr {
     namespace lora {
 
-        decoder::sptr decoder::make(float samp_rate, uint32_t bandwidth, uint8_t sf, bool implicit, uint8_t cr, bool crc, bool reduced_rate, bool disable_drift_correction) {
+        decoder::sptr decoder::make(float samp_rate, uint32_t bandwidth, uint8_t sf, bool implicit, uint8_t cr, bool crc, bool reduced_rate, bool disable_drift_correction, float center_freq) {
             return gnuradio::get_initial_sptr
-                   (new decoder_impl(samp_rate, bandwidth, sf, implicit, cr, crc, reduced_rate, disable_drift_correction));
+                   (new decoder_impl(samp_rate, bandwidth, sf, implicit, cr, crc, reduced_rate, disable_drift_correction, center_freq));
         }
 
         /**
          * The private constructor
          */
-        decoder_impl::decoder_impl(float samp_rate, uint32_t bandwidth, uint8_t sf, bool implicit, uint8_t cr, bool crc, bool reduced_rate, bool disable_drift_correction)
+        decoder_impl::decoder_impl(float samp_rate, uint32_t bandwidth, uint8_t sf, bool implicit, uint8_t cr, bool crc, bool reduced_rate, bool disable_drift_correction, float center_freq)
             : gr::sync_block("decoder",
                              gr::io_signature::make(1, -1, sizeof(gr_complex)),
                              gr::io_signature::make(0, 0, 0)),
@@ -88,13 +88,15 @@ namespace gr {
             d_energy_threshold   = 0.0f;
             d_fine_sync = 0;
             d_enable_fine_sync = !disable_drift_correction;
+            d_center_freq = center_freq;
+
             set_output_multiple(2 * d_samples_per_symbol);
 
             std::cout << "Bits (nominal) per symbol: \t"      << d_bits_per_symbol    << std::endl;
             std::cout << "Bins per symbol: \t"      << d_number_of_bins     << std::endl;
             std::cout << "Samples per symbol: \t"   << d_samples_per_symbol << std::endl;
             std::cout << "Decimation: \t\t"         << d_decim_factor       << std::endl;
-            if(!d_enable_fine_sync) {
+
                 std::cout << "Warning: clock drift correction disabled" << std::endl;
             }
             if(d_implicit) {
@@ -145,13 +147,11 @@ namespace gr {
             d_upchirp_ifreq.resize(d_samples_per_symbol);
             d_upchirp_ifreq_v.resize(d_samples_per_symbol*3);
             gr_complex tmp[d_samples_per_symbol*3];
-
             const double T       = -0.5 * d_bw * d_symbols_per_second;
             const double f0      = (d_bw / 2.0);
             const double pre_dir = 2.0 * M_PI;
             double t;
             gr_complex cmx       = gr_complex(1.0f, 1.0f);
-
             for (uint32_t i = 0u; i < d_samples_per_symbol; i++) {
                 // Width in number of samples = samples_per_symbol
                 // See https://en.wikipedia.org/wiki/Chirp#Linear
@@ -589,7 +589,10 @@ namespace gr {
             memset(buffer, 0, sizeof(uint8_t) * len);
             memset(&loratap_header, 0, sizeof(loratap_header));
 
-            loratap_header.rssi.snr = (uint8_t)(10.0f * log10(d_snr) + 0.5);
+            loratap_header.rssi.snr = (uint32_t)((10.0f * log10(d_snr) + 0.5) * 100);
+            loratap_header.channel.frequency = (uint32_t)d_center_freq;
+            loratap_header.channel.sf = d_sf;
+            loratap_header.channel.bandwidth = d_bw;
 
             offset = gr::lora::build_packet(buffer, offset, &loratap_header, sizeof(loratap_header_t));
             offset = gr::lora::build_packet(buffer, offset, &d_phdr, sizeof(loraphy_header_t));
@@ -738,6 +741,8 @@ namespace gr {
             (void) noutput_items;
             (void) output_items;
 
+            //std::cout << "Work d_bw: " << d_bw << std::endl;
+
             const gr_complex *input     = (gr_complex *) input_items[0];
             //const gr_complex *raw_input = (gr_complex *) input_items[1]; // Input bypassed by low pass filter
 
@@ -827,7 +832,7 @@ namespace gr {
 
                     if (demodulate(input, true)) {
                         decode(true);
-                        gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_decoded.size(), false);
+                        //gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_decoded.size(), false);
                         memcpy(&d_phdr, &d_decoded[0], sizeof(loraphy_header_t));
                         if (d_phdr.cr > 4)
                             d_phdr.cr = 4;
@@ -867,7 +872,7 @@ namespace gr {
 
                     if (d_payload_symbols <= 0) {
                         decode(false);
-                        gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_payload_length, true);
+                        //gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_payload_length, true);
                         msg_lora_frame();
 
                         d_state = gr::lora::DecoderState::DETECT;
